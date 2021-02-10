@@ -1,0 +1,4 @@
+origins:
+  - postman-echo.com
+  - typicode.jsonplaceholder.com
+  # - "*"
