@@ -1,8 +1,7 @@
 use std::str::FromStr;
 use std::time::Duration;
 
-
-use actix_http::body::Body;
+use actix_http::{body::Body};
 use actix_web::{App, HttpResponse, HttpServer, client, error, post, web};
 use futures::StreamExt;
 use futures::prelude::stream::FuturesOrdered;
@@ -13,17 +12,17 @@ mod models;
 mod settings;
 
 use models::*;
+use web::{Buf};
 
 // TODO: Make this configurable.
 const BIND_ADDR: &str = "127.0.0.1:9999";
 const HOST_WILDCARD: &str = "*";
 // TODO: Make this configurable.
-const MAX_SIZE: usize = 262_144; // max payload size is 256k
+const MAX_SIZE: usize = 262_144; // max request payload size is 256k
 
 // TODO: Body encoding query string / multiple encodings.
 #[post("/mani")]
 async fn index(mut payload: web::Payload, cli: web::Data<client::Client>) -> Result<HttpResponse, error::Error> {
-
     let mut body = web::BytesMut::new();
 
     while let Some(chunk) = payload.next().await {
@@ -35,7 +34,7 @@ async fn index(mut payload: web::Payload, cli: web::Data<client::Client>) -> Res
         body.extend_from_slice(&chunk);
     }
 
-    let mani_req = serde_json::from_slice::<ManiRequestWrapper>(&body)?;
+    let mut mani_req = serde_json::from_slice::<ManiRequestWrapper>(&body)?;
 
     // Validate request hosts.
     for r in mani_req.requests.iter() {
@@ -52,10 +51,10 @@ async fn index(mut payload: web::Payload, cli: web::Data<client::Client>) -> Res
         }
     }
 
-    let mut req_futs: FuturesOrdered<awc::SendClientRequest> = mani_req.requests.iter().map(|req| {
+    let mut req_futs: FuturesOrdered<awc::SendClientRequest> = mani_req.requests.drain(..).map(|req| {
         let meth = http::Method::from_str(req.method.as_str()).unwrap();
 
-        let mut request = cli.request(meth, req.url.clone());
+        let mut request = cli.request(meth, req.url);
 
         // TODO: Configurable timeouts.
         request = request.timeout(Duration::from_secs(10));
@@ -64,9 +63,14 @@ async fn index(mut payload: web::Payload, cli: web::Data<client::Client>) -> Res
             request = request.header(h.key.as_str(), h.value.as_str());
         }
 
-        let body = req.body.to_owned().map_or_else(
-            ||{ Body::None }, 
-            |b| { Body::Bytes(bytes::Bytes::from(b)) } );
+        let body = match req.body {
+            models::Body::None => Body::None,
+            models::Body::Bytes(bts) => Body::Bytes(bytes::Bytes::from(bts)),
+            models::Body::Json(val) => {
+                let json_str = serde_json::to_string(&val).unwrap();
+                Body::Bytes(bytes::Bytes::from(json_str))
+            }
+        };
 
         request.send_body(body)
     }).collect();
@@ -123,12 +127,32 @@ async fn index(mut payload: web::Payload, cli: web::Data<client::Client>) -> Res
 
                 match r.body().await {
                     Ok(res_body) => {
+                        if let Some(ct) = r.headers().get("Content-Type") {
+                            if let Ok(typ) = ct.to_str() {
+                                if typ.starts_with("application/json") {
+                                    if let Ok(json_str) = std::str::from_utf8(res_body.bytes()) {
+                                        if let Ok(json) = serde_json::from_str(json_str) {
+                                            mani_responses.push(ManiResponse{
+                                                error: None,
+                                                response: Some(ManiResponseMessage{
+                                                    status_code: r.status().as_u16(),
+                                                    headers,
+                                                    body: models::Body::Json(json),
+                                                })
+                                            });
+                                            continue;
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
                         mani_responses.push(ManiResponse{
                             error: None,
                             response: Some(ManiResponseMessage{
                                 status_code: r.status().as_u16(),
                                 headers,
-                                body: Some(res_body.to_vec()),
+                                body: models::Body::Bytes(res_body.to_vec()),
                             })
                         })
                     },

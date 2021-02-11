@@ -1,4 +1,3 @@
-/*
 pub mod base64 {
     extern crate base64;
     use serde::{Serializer, de, Deserialize, Deserializer};
@@ -21,8 +20,8 @@ pub mod base64 {
         base64::decode(s).map_err(de::Error::custom)
     }
 } 
-*/
 
+/*
 pub mod base64_opt {
     extern crate base64;
     use serde::{Serializer, de, Deserialize, Deserializer};
@@ -48,3 +47,4 @@ pub mod base64_opt {
         }
     }
 }
+*/

@@ -1,5 +1,6 @@
 use serde_tuple::{Serialize_tuple, Deserialize_tuple};
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
 use crate::base64;
 
 #[derive(Debug, Deserialize_tuple, Serialize_tuple)]
@@ -8,14 +9,26 @@ pub struct ManiHeader {
     pub value: String
 }
 
+#[derive(Debug, Deserialize, Serialize)]
+pub enum Body {
+    None,
+    #[serde(with = "base64::base64")]
+    Bytes(Vec<u8>),
+    Json(Value)
+}
+
+impl Default for Body {
+    fn default() -> Self {
+        Body::None
+    }
+}
+
 #[derive(Debug, Deserialize)]
 pub struct ManiRequest {
     pub url: String,
     pub method: String,
-    pub body_encoding: Option<String>,
-    // body: Option<String>, // base64 encoded string
-    #[serde(with = "base64::base64_opt")]
-    pub body: Option<Vec<u8>>,
+    // TODO: Handle different body types better.
+    pub body: Body,
     pub headers: Vec<ManiHeader>
 }
 
@@ -28,8 +41,7 @@ pub struct ManiRequestWrapper {
 pub struct ManiResponseMessage {
     pub status_code: u16,
     pub headers: Vec<ManiHeader>,
-    #[serde(with = "base64::base64_opt")]
-    pub body: Option<Vec<u8>>
+    pub body: Body,
 }
 
 #[derive(Debug, Serialize)]

@@ -15,14 +15,13 @@ and doesn't require extra code to be written.
 
 This needs to be fast, it will sit in front of all your other services.
 
-I don't want people complaining about garbage collection.
+Something about garbage collection... I'm not sure.
 
 #### TODO
 
-- [ ] Everything.
 - [ ] Accept multiple request formats.
-- [ ] Configure allowed origins.
-- [ ] Non base64 request body to make it human readable.
+- [x] Configure allowed origins.
+- [x] Non base64 request body to make it human readable.
 - [ ] Cookies support.
 
 Mani example:
@@ -35,14 +34,26 @@ POST http://localhost:9999/mani?format=json
 {
     "requests": [
         {
-            "url": "https://jsonplaceholder.typicode.com/comments/1",
-            "method": "GET",
+            "url": "https://jsonplaceholder.typicode.com/comments",
+            "method": "POST",
             "headers": [
                 ["Foo", "Bar"],
                 ["Foo", "Baz"],
                 ["Baz", "Quux"]
             ],
-            "body": "base64 string | null"
+            "body": {"Bytes": "base64"}
+        },
+        {
+            "url": "https://jsonplaceholder.typicode.com/comments",
+            "method": "POST",
+            "headers": [
+                ["Foo", "Bar"],
+                ["Foo", "Baz"],
+                ["Baz", "Quux"]
+            ],
+            "body": {"Json": {
+                "foo": "bar"
+            }}
         },
         {
             "url": "https://jsonplaceholder.typicode.com/comments/2",
@@ -52,7 +63,7 @@ POST http://localhost:9999/mani?format=json
                 ["Foo", "Baz"],
                 ["Baz", "Quux"]
             ],
-            "body": "base64 string | null"
+            "body": {"None": null}
         }
     ]
 }
